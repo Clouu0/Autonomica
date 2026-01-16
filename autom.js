@@ -245,6 +245,101 @@ client.on("guildMemberAdd", async member => {
   }
 });
 
+const games = new Map(); // channelId -> gameState
+
+const cooldowns = new Map();
+
+function canGuess(userId) {
+  const now = Date.now();
+  const last = cooldowns.get(userId) ?? 0;
+
+  if (now - last < 2000) return false;
+
+  cooldowns.set(userId, now);
+  return true;
+}
+
+
+function renderGame(game) {
+  const masked = game.word
+    .split('')
+    .map(c => (game.guessed.has(c) ? c : '_'))
+    .join(' ');
+
+  return (
+    `**Multiplayer Hangman**\n` +
+    `Word: **${masked}**\n` +
+    `Lives: ${game.lives}\n` +
+    `Guessed: ${[...game.guessed].sort().join(', ')}`
+  );
+}
+
+
+function handleGuess(message, game, letter) {
+  if (game.guessed.has(letter)) {
+    message.reply(`❗ **${letter.toUpperCase()}** was already guessed`);
+    return;
+  }
+
+  game.guessed.add(letter);
+  game.lastGuessBy = message.author.id;
+
+  if (!game.word.includes(letter)) {
+    game.lives--;
+  }
+
+  const won = [...game.word].every(c => game.guessed.has(c));
+  const lost = game.lives <= 0;
+
+  if (won || lost) {
+    games.delete(message.channel.id);
+
+    message.channel.send(
+      won
+        ? `**Game over!** The word was **${game.word}**`
+        : `**Game over!** The word was **${game.word}**`
+    );
+    return;
+  }
+
+  message.channel.send(renderGame(game));
+}
+
+
+client.on('messageCreate', async message => {
+  if (message.author.bot) return;
+
+  // Must mention the bot
+  if (!message.mentions.has(client.user)) return;
+
+  const content = message.content
+    .replace(`<@${client.user.id}>`, '')
+    .replace(`<@!${client.user.id}>`, '')
+    .trim()
+    .toLowerCase();
+
+  // Single-letter guess only
+  if (!/^[a-z]$/.test(content)) return;
+
+  const game = games.get(message.channel.id);
+  if (!game) return;
+
+  // Optional: stop same user guessing twice in a row
+  if (game.lastGuessBy === message.author.id) {
+    return message.reply('Let someone else guess!');
+  }
+
+  if (!canGuess(message.author.id)) {
+  return message.reply({
+    content: 'Slow down! Wait a moment before guessing again.',
+    allowedMentions: { repliedUser: false }
+  });
+}
+
+handleGuess(message, game, content);
+
+});
+
 
 
 
