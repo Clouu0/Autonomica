@@ -42,6 +42,7 @@ export default {
         .setRequired(true)
     ),
     permissionLevel: 'Everyone',
+    alias: ['8'],
   async execute(interaction) {
     const question = interaction.options.getString('question');
     const answer = responses[Math.floor(Math.random() * responses.length)];
@@ -49,5 +50,12 @@ export default {
     await interaction.reply({
       content: `**Question:** ${question}\n**Answer:** ${answer}`
     });
+  },
+  async prefixExecute(message, args) {
+  const question = args.join(' ');
+  const answer = responses[Math.floor(Math.random() * responses.length)];
+  await message.reply({
+    content: `**Question:** ${question}\n**Answer:** ${answer}`
+  });
   }
 };

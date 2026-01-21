@@ -10,6 +10,7 @@ import {
 
 } from "discord.js";
 import { EmbedBuilder, PermissionsBitField } from "discord.js";
+import { handleMessage } from "./handlers/messageHandler.js";
 
 const welcomeChannelId = "1450632412961964142";
 const rolesChannelId = "1450622231851044998";
@@ -62,46 +63,6 @@ for (const file of commandFiles) {
 
 client.once("clientReady", () => {
   console.log(`🤖 Logged in as ${client.user.tag}`);
-});
-
-const jsonPath = path.join(__dirname, "reactionRoles.json");
-
-function loadData() {
-  return JSON.parse(fs.readFileSync(jsonPath, "utf-8"));
-}
-client.on("messageReactionAdd", async (reaction, user) => {
-  if (user.bot) return;
-  if (reaction.partial) await reaction.fetch();
-
-  const data = loadData();
-  const pairs = data[reaction.message.id];
-  if (!pairs) return;
-
-  const pair = pairs.find(p => p.emoji === reaction.emoji.name);
-  if (!pair) return;
-
-  const role = reaction.message.guild.roles.cache.get(pair.roleId);
-  if (!role) return;
-
-  const member = await reaction.message.guild.members.fetch(user.id);
-  await member.roles.add(role);
-});
-client.on("messageReactionRemove", async (reaction, user) => {
-  if (user.bot) return;
-  if (reaction.partial) await reaction.fetch();
-
-  const data = loadData();
-  const pairs = data[reaction.message.id];
-  if (!pairs) return;
-
-  const pair = pairs.find(p => p.emoji === reaction.emoji.name);
-  if (!pair) return;
-
-  const role = reaction.message.guild.roles.cache.get(pair.roleId);
-  if (!role) return;
-
-  const member = await reaction.message.guild.members.fetch(user.id);
-  await member.roles.remove(role);
 });
 
 //const XP_PER_MESSAGE = 10;
@@ -245,7 +206,7 @@ client.on("guildMemberAdd", async member => {
   }
 });
 
-const games = new Map(); // channelId -> gameState
+
 
 const cooldowns = new Map();
 
@@ -306,48 +267,56 @@ function handleGuess(message, game, letter) {
 }
 
 
+import { games } from './commands/hangman.js';
+
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
-
-  // Must mention the bot
   if (!message.mentions.has(client.user)) return;
 
-  const content = message.content
+  const game = games.get(message.channel.id);
+  if (!game) return;
+
+  // Extract letter after mention
+  const guess = message.content
     .replace(`<@${client.user.id}>`, '')
     .replace(`<@!${client.user.id}>`, '')
     .trim()
     .toLowerCase();
 
-  // Single-letter guess only
-  if (!/^[a-z]$/.test(content)) return;
+  if (!/^[a-z]$/.test(guess)) return;
 
-  const game = games.get(message.channel.id);
-  if (!game) return;
-
-  // Optional: stop same user guessing twice in a row
-  if (game.lastGuessBy === message.author.id) {
-    return message.reply('Let someone else guess!');
+  if (game.guessed.has(guess)) {
+    return message.reply(`❗ **${guess.toUpperCase()}** was already guessed.`);
   }
 
-  if (!canGuess(message.author.id)) {
-  return message.reply({
-    content: 'Slow down! Wait a moment before guessing again.',
-    allowedMentions: { repliedUser: false }
-  });
-}
+  game.guessed.add(guess);
+  game.lastGuesser = message.author.id;
 
-handleGuess(message, game, content);
+  if (!game.word.includes(guess)) {
+    game.lives--;
+  }
 
+  const masked = maskWord(game.word, game.guessed);
+  const won = [...game.word].every(c => game.guessed.has(c));
+  const lost = game.lives <= 0;
+
+  if (won || lost) {
+    games.delete(message.channel.id);
+    return message.channel.send(
+      won
+        ? `🎉 **You won!** The word was **${game.word}**`
+        : `💀 **You lost!** The word was **${game.word}**`
+    );
+  }
+
+  message.channel.send(
+    `🎯 **Hangman**\n` +
+    `Word: **${masked}**\n` +
+    `Lives: ❤️ ${game.lives}\n` +
+    `Guessed: ${[...game.guessed].sort().join(', ')}`
+  );
 });
 
-
-
-
-
-
-
-
+client.on("messageCreate", handleMessage);
 
 client.login(token);
-
-
