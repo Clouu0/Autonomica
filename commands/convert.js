@@ -117,6 +117,28 @@ export default {
         : `**${value} ${from}** = **${result.toFixed(4)} ${to}**`;
 
     await interaction.reply(formatted);
-  }
+  },
+
+async prefixExecute(message, args) {
+const value = parseFloat(args[0]);
+const from = args[1];
+const to = args[2];
+
+const result = convert(value, from, to);
+
+    if (result === null) {
+      return interaction.reply({
+        content: `I can't convert **${from} → ${to}**.`,
+        ephemeral: true
+      });
+    }
+  const formatted =
+      ['c', 'f', 'k'].includes(from)
+        ? `**${value}°${from.toUpperCase()}** = **${result.toFixed(2)}°${to.toUpperCase()}**`
+        : `**${value} ${from}** = **${result.toFixed(4)} ${to}**`;
+
+    await message.reply(formatted);
+}
 };
+
 
